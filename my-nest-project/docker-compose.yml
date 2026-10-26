@@ -1,0 +1,76 @@
+name: nestjs-converter
+
+services:
+  app:
+    # glibc image so the host's node_modules can be shared; run as host user so
+    # dist/ and *.tsbuildinfo stay owned by you, not root
+    image: node:24.21.0-slim
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /usr/src/app
+    command: npm run start:dev
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: development
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nestjs_converter}
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - .:/usr/src/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18.0
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-nestjs_converter}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Postgres 18+ stores data under /var/lib/postgresql/<major>/, so mount the parent dir
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8.2
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:9.9
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+  redisinsight:
+    image: redis/redisinsight:2.70
+    profiles: ["tools"]
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+  redis_data:
