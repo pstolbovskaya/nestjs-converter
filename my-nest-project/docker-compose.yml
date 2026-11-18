@@ -7,7 +7,9 @@ services:
     image: node:24.21.0-slim
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /usr/src/app
-    command: npm run start:dev
+    # --no-shell: the slim image has no `ps`, so Nest's watch restart can only kill
+    # its direct child; with a shell wrapper that's `sh`, and the old `node` keeps port 3000
+    command: npm run start:dev -- --no-shell
     ports:
       - "${PORT:-3000}:3000"
     environment:
