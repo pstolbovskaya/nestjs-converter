@@ -1,6 +1,8 @@
 import { IsEmail, Matches } from 'class-validator';
+import { NormalizeEmail } from '../../common/decorators/normalize-email.decorator';
 
 export class ConfirmRegisterDto {
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 

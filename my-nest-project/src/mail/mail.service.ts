@@ -9,9 +9,9 @@ export class MailService {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT),
     secure: false,
-    connectionTimeout: 5_000, 
+    connectionTimeout: 5_000,
     greetingTimeout: 5_000,
-    socketTimeout: 10_000, 
+    socketTimeout: 10_000,
   });
 
   async sendConfirmationCode(

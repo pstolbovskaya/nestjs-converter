@@ -13,7 +13,7 @@ import { User } from '../users/user.entity';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { isUniqueViolation } from '../database/postgres-errors';
-import { randomInt } from 'crypto';
+import { createHmac, randomInt, timingSafeEqual } from 'crypto';
 import { ConfirmRegisterDto } from './dto/confirm-register.dto';
 import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
 import { MailService } from '../mail/mail.service';
@@ -25,15 +25,22 @@ const OTP_MAX_ATTEMPTS = 5;
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly hmacSecret: string;
 
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     private readonly mailService: MailService,
-  ) {}
+  ) {
+    const secret = process.env.CONFIRMATION_HMAC_SECRET;
+    if (!secret) {
+      throw new Error('CONFIRMATION_HMAC_SECRET is not set');
+    }
+    this.hmacSecret = secret;
+  }
 
   async register(dto: RegisterDto) {
-    const email = dto.email.toLowerCase();
+    const email = dto.email;
     const existingUser = await this.usersRepository.findOneBy({ email });
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
@@ -46,7 +53,7 @@ export class AuthService {
       password: passwordHash,
     });
 
-    const otp = await this.issueOtp(user);
+    const otp = this.issueOtp(user);
 
     let savedUser: User;
 
@@ -60,7 +67,7 @@ export class AuthService {
       throw error;
     }
 
-    await this.sendOtpEmail(savedUser, otp);
+    await this.sendOtpEmail(savedUser.email, otp);
 
     return {
       message: 'User registered',
@@ -70,7 +77,7 @@ export class AuthService {
   }
 
   async confirmRegistration(dto: ConfirmRegisterDto) {
-    const email = dto.email.toLowerCase();
+    const email = dto.email;
     const user = await this.usersRepository.findOneBy({ email });
 
     if (
@@ -92,16 +99,23 @@ export class AuthService {
       );
     }
 
-    const isCodeValid = await bcrypt.compare(
-      dto.code,
-      user.confirmationCodeHash,
-    );
+    const isCodeValid = this.isHmacEqual(dto.code, user.confirmationCodeHash);
+
     if (!isCodeValid) {
       await this.usersRepository.increment(
         { id: user.id },
         'confirmationAttempts',
         1,
       );
+
+      const attemptsUsed = user.confirmationAttempts + 1;
+      if (attemptsUsed >= OTP_MAX_ATTEMPTS) {
+        throw new HttpException(
+          'Too many attempts. Please request a new code',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
       throw new BadRequestException('Invalid or expired code');
     }
 
@@ -116,8 +130,7 @@ export class AuthService {
   }
 
   async resendConfirmation(dto: ResendConfirmationDto) {
-    const email = dto.email.toLowerCase();
-
+    const email = dto.email;
     const user = await this.usersRepository.findOneBy({ email });
 
     if (!user || user.isConfirmed) {
@@ -136,16 +149,16 @@ export class AuthService {
       }
     }
 
-    const otp = await this.issueOtp(user);
+    const otp = this.issueOtp(user);
     await this.usersRepository.save(user);
-    await this.sendOtpEmail(user, otp);
+    await this.sendOtpEmail(user.email, otp);
 
     return { message: `New code has been sent to ${user.email}` };
   }
 
-  private async issueOtp(user: User): Promise<string> {
+  private issueOtp(user: User): string {
     const otp = this.generateOtp();
-    user.confirmationCodeHash = await bcrypt.hash(otp, 10);
+    user.confirmationCodeHash = this.hmac(otp);
     user.confirmationCodeExpireDateTime = new Date(Date.now() + OTP_TTL_MS);
     user.confirmationAttempts = 0;
 
@@ -156,23 +169,27 @@ export class AuthService {
     return randomInt(0, 1_000_000).toString().padStart(6, '0');
   }
 
-  private async sendOtpEmail(user: User, otp: string): Promise<void> {
+  private hmac(value: string): string {
+    return createHmac('sha256', this.hmacSecret).update(value).digest('hex');
+  }
+
+  private isHmacEqual(value: string, expectedHmac: string): boolean {
+    const actual = Buffer.from(this.hmac(value), 'hex');
+    const expected = Buffer.from(expectedHmac, 'hex');
+
+    return (
+      actual.length === expected.length && timingSafeEqual(actual, expected)
+    );
+  }
+  private async sendOtpEmail(email: string, otp: string): Promise<void> {
     try {
       await this.mailService.sendConfirmationCode(
-        user.email,
+        email,
         otp,
         OTP_TTL_MS / 60_000,
       );
     } catch (error) {
-      this.logger.error(
-        `Failed to send confirmation email to ${user.email}`,
-        error,
-      );
-
-      await this.usersRepository.update(
-        { id: user.id },
-        { confirmationCodeHash: null, confirmationCodeExpireDateTime: null },
-      );
+      this.logger.error(`Failed to send confirmation email to ${email}`, error);
 
       throw new ServiceUnavailableException(
         'Could not send confirmation email. Please try again later using /auth/register/resend',

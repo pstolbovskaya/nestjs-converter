@@ -20,6 +20,7 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       MAIL_FROM: "Nest Converter <noreply@nestjs-converter.local>"
+      CONFIRMATION_HMAC_SECRET: ${CONFIRMATION_HMAC_SECRET:?set CONFIRMATION_HMAC_SECRET in .env}
     volumes:
       - .:/usr/src/app
     depends_on:

@@ -1,28 +1,16 @@
-import {
-  IsEmail,
-  IsString,
-  IsStrongPassword,
-  MaxLength,
-} from 'class-validator';
+import { IsEmail, IsString, Matches, MinLength } from 'class-validator';
+import { NormalizeEmail } from '../../common/decorators/normalize-email.decorator';
+import { MaxBytes } from '../../common/decorators/max-bytes.decorator';
 
 export class RegisterDto {
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 
   @IsString()
-  @MaxLength(72)
-  @IsStrongPassword(
-    {
-      minLength: 8,
-      minLowercase: 1,
-      minNumbers: 1,
-      minSymbols: 1,
-      minUppercase: 1,
-    },
-    {
-      message:
-        'The password is weak. Use at least 8 characters, including at least 1 uppercase, lowercase, number and special symbol (e.g. !@#$%)',
-    },
-  )
+  @MinLength(8)
+  @MaxBytes(72)
+  @Matches(/\p{L}/u, { message: 'password must contain at least one letter' })
+  @Matches(/\d/, { message: 'password must contain at least one digit' })
   password: string;
 }
