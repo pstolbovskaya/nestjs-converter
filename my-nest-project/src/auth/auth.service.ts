@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Injectable,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -19,6 +20,7 @@ import { MailService } from '../mail/mail.service';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_CD_MS = 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
 
 @Injectable()
 export class AuthService {
@@ -58,18 +60,7 @@ export class AuthService {
       throw error;
     }
 
-    try {
-      await this.mailService.sendConfirmationCode(
-        savedUser.email,
-        otp,
-        OTP_TTL_MS / 60_000,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to send confirmation email to ${savedUser.email}`,
-        error,
-      );
-    }
+    await this.sendOtpEmail(savedUser, otp);
 
     return {
       message: 'User registered',
@@ -94,18 +85,31 @@ export class AuthService {
     if (user.confirmationCodeExpireDateTime < new Date()) {
       throw new BadRequestException('Invalid or expired code');
     }
+    if (user.confirmationAttempts >= OTP_MAX_ATTEMPTS) {
+      throw new HttpException(
+        'Too many attempts. Please request a new code',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
 
     const isCodeValid = await bcrypt.compare(
       dto.code,
       user.confirmationCodeHash,
     );
     if (!isCodeValid) {
+      await this.usersRepository.increment(
+        { id: user.id },
+        'confirmationAttempts',
+        1,
+      );
       throw new BadRequestException('Invalid or expired code');
     }
 
     user.isConfirmed = true;
     user.confirmationCodeHash = null;
     user.confirmationCodeExpireDateTime = null;
+    user.confirmationAttempts = 0;
+
     await this.usersRepository.save(user);
 
     return { message: 'Email confirmed' };
@@ -134,12 +138,7 @@ export class AuthService {
 
     const otp = await this.issueOtp(user);
     await this.usersRepository.save(user);
-
-    await this.mailService.sendConfirmationCode(
-      user.email,
-      otp,
-      OTP_TTL_MS / 60_000,
-    );
+    await this.sendOtpEmail(user, otp);
 
     return { message: `New code has been sent to ${user.email}` };
   }
@@ -148,10 +147,36 @@ export class AuthService {
     const otp = this.generateOtp();
     user.confirmationCodeHash = await bcrypt.hash(otp, 10);
     user.confirmationCodeExpireDateTime = new Date(Date.now() + OTP_TTL_MS);
+    user.confirmationAttempts = 0;
 
     return otp;
   }
+
   private generateOtp(): string {
     return randomInt(0, 1_000_000).toString().padStart(6, '0');
+  }
+
+  private async sendOtpEmail(user: User, otp: string): Promise<void> {
+    try {
+      await this.mailService.sendConfirmationCode(
+        user.email,
+        otp,
+        OTP_TTL_MS / 60_000,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send confirmation email to ${user.email}`,
+        error,
+      );
+
+      await this.usersRepository.update(
+        { id: user.id },
+        { confirmationCodeHash: null, confirmationCodeExpireDateTime: null },
+      );
+
+      throw new ServiceUnavailableException(
+        'Could not send confirmation email. Please try again later using /auth/register/resend',
+      );
+    }
   }
 }

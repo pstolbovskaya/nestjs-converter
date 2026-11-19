@@ -27,4 +27,7 @@ export class User {
 
   @Column({ type: 'timestamptz', nullable: true })
   confirmationCodeExpireDateTime: Date | null;
+
+  @Column({ default: 0 })
+  confirmationAttempts: number;
 }
