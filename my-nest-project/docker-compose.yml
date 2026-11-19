@@ -17,6 +17,9 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-nestjs_converter}
       REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      MAIL_FROM: "Nest Converter <noreply@nestjs-converter.local>"
     volumes:
       - .:/usr/src/app
     depends_on:
@@ -24,6 +27,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mailpit:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:v1.27.0
+    ports:
+      - "8025:8025"
+      - "1025:1025"
 
   postgres:
     image: postgres:18.0

@@ -15,6 +15,7 @@ import { isUniqueViolation } from '../database/postgres-errors';
 import { randomInt } from 'crypto';
 import { ConfirmRegisterDto } from './dto/confirm-register.dto';
 import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
+import { MailService } from '../mail/mail.service';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_CD_MS = 60 * 1000;
@@ -26,6 +27,7 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    private readonly mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -56,7 +58,19 @@ export class AuthService {
       throw error;
     }
 
-    this.logger.log(`OTP for ${savedUser.email}: ${otp}`);
+    try {
+      await this.mailService.sendConfirmationCode(
+        savedUser.email,
+        otp,
+        OTP_TTL_MS / 60_000,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send confirmation email to ${savedUser.email}`,
+        error,
+      );
+    }
+
     return {
       message: 'User registered',
       id: savedUser.id,
@@ -121,7 +135,11 @@ export class AuthService {
     const otp = await this.issueOtp(user);
     await this.usersRepository.save(user);
 
-    this.logger.log(`OTP for ${user.email}: ${otp}`);
+    await this.mailService.sendConfirmationCode(
+      user.email,
+      otp,
+      OTP_TTL_MS / 60_000,
+    );
 
     return { message: `New code has been sent to ${user.email}` };
   }
