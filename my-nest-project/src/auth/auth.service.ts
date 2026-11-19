@@ -26,6 +26,7 @@ const OTP_MAX_ATTEMPTS = 5;
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly hmacSecret: string;
+  private readonly emailConfirmationEnabled: boolean;
 
   constructor(
     @InjectRepository(User)
@@ -37,6 +38,12 @@ export class AuthService {
       throw new Error('CONFIRMATION_HMAC_SECRET is not set');
     }
     this.hmacSecret = secret;
+
+    const confirmationFlag = process.env.AUTH_EMAIL_CONFIRMATION;
+    if (confirmationFlag !== 'true' && confirmationFlag !== 'false') {
+      throw new Error('AUTH_EMAIL_CONFIRMATION must be "true" or "false"');
+    }
+    this.emailConfirmationEnabled = confirmationFlag === 'true';
   }
 
   async register(dto: RegisterDto) {
@@ -53,7 +60,12 @@ export class AuthService {
       password: passwordHash,
     });
 
-    const otp = this.issueOtp(user);
+    let otp: string | null = null;
+    if (this.emailConfirmationEnabled) {
+      otp = this.issueOtp(user);
+    } else {
+      user.isConfirmed = true;
+    }
 
     let savedUser: User;
 
@@ -67,12 +79,15 @@ export class AuthService {
       throw error;
     }
 
-    await this.sendOtpEmail(savedUser.email, otp);
+    if (otp) {
+      await this.sendOtpEmail(savedUser.email, otp);
+    }
 
     return {
       message: 'User registered',
       id: savedUser.id,
       email: savedUser.email,
+      status: savedUser.isConfirmed ? 'active' : 'pending',
     };
   }
 
