@@ -21,4 +21,10 @@ export class User {
 
   @Column({ default: false })
   isConfirmed: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  confirmationCodeHash: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  confirmationCodeExpireDateTime: Date | null;
 }
