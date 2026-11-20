@@ -5,13 +5,13 @@ services:
     # glibc image so the host's node_modules can be shared; run as host user so
     # dist/ and *.tsbuildinfo stay owned by you, not root
     image: node:24.21.0-slim
-    user: "${UID:-1000}:${GID:-1000}"
+    user: '${UID:-1000}:${GID:-1000}'
     working_dir: /usr/src/app
     # --no-shell: the slim image has no `ps`, so Nest's watch restart can only kill
     # its direct child; with a shell wrapper that's `sh`, and the old `node` keeps port 3000
     command: npm run start:dev -- --no-shell
     ports:
-      - "${PORT:-3000}:3000"
+      - '${PORT:-3000}:3000'
     environment:
       PORT: 3000
       NODE_ENV: development
@@ -19,9 +19,13 @@ services:
       REDIS_URL: redis://redis:6379
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
-      MAIL_FROM: "Nest Converter <noreply@nestjs-converter.local>"
+      MAIL_FROM: 'Nest Converter <noreply@nestjs-converter.local>'
       CONFIRMATION_HMAC_SECRET: ${CONFIRMATION_HMAC_SECRET:?set CONFIRMATION_HMAC_SECRET in .env}
       AUTH_EMAIL_CONFIRMATION: ${AUTH_EMAIL_CONFIRMATION:-true}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      JWT_ISSUER: ${JWT_ISSUER:-nestjs-converter}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-nestjs-converter-web}
     volumes:
       - .:/usr/src/app
     depends_on:
@@ -35,8 +39,8 @@ services:
   mailpit:
     image: axllent/mailpit:v1.27.0
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - '8025:8025'
+      - '1025:1025'
 
   postgres:
     image: postgres:18.0
@@ -45,12 +49,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-nestjs_converter}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       # Postgres 18+ stores data under /var/lib/postgresql/<major>/, so mount the parent dir
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -58,31 +62,31 @@ services:
   redis:
     image: redis:8.2
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 10
 
   pgadmin:
     image: dpage/pgadmin4:9.9
-    profiles: ["tools"]
+    profiles: ['tools']
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
     ports:
-      - "5050:80"
+      - '5050:80'
     depends_on:
       - postgres
 
   redisinsight:
     image: redis/redisinsight:2.70
-    profiles: ["tools"]
+    profiles: ['tools']
     ports:
-      - "5540:5540"
+      - '5540:5540'
     depends_on:
       - redis
 

@@ -19,6 +19,7 @@ import { ConfirmRegisterDto } from './dto/confirm-register.dto';
 import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
 import { MailService } from '../mail/mail.service';
 import { LoginDto } from './dto/login.dto';
+import { TokenService } from './token.service';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_CD_MS = 60 * 1000;
@@ -36,6 +37,7 @@ export class AuthService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     private readonly mailService: MailService,
+    private readonly tokenService: TokenService,
   ) {
     const secret = process.env.CONFIRMATION_HMAC_SECRET;
     if (!secret) {
@@ -184,7 +186,7 @@ export class AuthService {
       throw new UnauthorizedException('invalid_credentials');
     }
 
-    return user;
+    return this.tokenService.issueTokens(user);
   }
 
   private issueOtp(user: User): string {
