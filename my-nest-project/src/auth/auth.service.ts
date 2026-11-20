@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,10 +18,13 @@ import { createHmac, randomInt, timingSafeEqual } from 'crypto';
 import { ConfirmRegisterDto } from './dto/confirm-register.dto';
 import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
 import { MailService } from '../mail/mail.service';
+import { LoginDto } from './dto/login.dto';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_CD_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
+const BCRYPT_COST = 12;
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('dummy-password', BCRYPT_COST);
 
 @Injectable()
 export class AuthService {
@@ -53,7 +57,7 @@ export class AuthService {
       throw new ConflictException('User with this email already exists');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_COST);
 
     const user = this.usersRepository.create({
       email: email,
@@ -169,6 +173,18 @@ export class AuthService {
     await this.sendOtpEmail(user.email, otp);
 
     return { message: `New code has been sent to ${user.email}` };
+  }
+
+  async login(dto: LoginDto) {
+    const user = await this.usersRepository.findOneBy({ email: dto.email });
+    const hasToCheck = user?.password ?? DUMMY_PASSWORD_HASH;
+    const isPasswordValid = await bcrypt.compare(dto.password, hasToCheck);
+
+    if (!user || !isPasswordValid || !user.isConfirmed) {
+      throw new UnauthorizedException('invalid_credentials');
+    }
+
+    return user;
   }
 
   private issueOtp(user: User): string {

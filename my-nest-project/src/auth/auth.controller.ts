@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { ConfirmRegisterDto } from './dto/confirm-register.dto';
 import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -23,5 +24,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   resendRegister(@Body() dto: ResendConfirmationDto) {
     return this.authService.resendConfirmation(dto);
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async login(@Body() dto: LoginDto): Promise<void> {
+    await this.authService.login(dto);
   }
 }
