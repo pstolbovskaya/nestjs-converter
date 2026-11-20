@@ -1,9 +1,18 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Res,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { ConfirmRegisterDto } from './dto/confirm-register.dto';
 import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
 import { LoginDto } from './dto/login.dto';
+import type { Response } from 'express';
+import { setAuthCookies } from './auth-cookies';
 
 @Controller('auth')
 export class AuthController {
@@ -27,8 +36,12 @@ export class AuthController {
   }
 
   @Post('login')
-  @HttpCode(HttpStatus.OK)
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const tokens = await this.authService.login(dto);
+    setAuthCookies(res, tokens);
   }
 }

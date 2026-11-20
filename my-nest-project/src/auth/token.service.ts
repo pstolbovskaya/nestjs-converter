@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../users/user.entity';
 
-const ACCESS_TTL_SEC = 15 * 60;
-const REFRESH_TTL_SEC = 30 * 24 * 60 * 60;
+export const ACCESS_TTL_SEC = 15 * 60;
+export const REFRESH_TTL_SEC = 30 * 24 * 60 * 60;
 
 export type TokenUse = 'access' | 'refresh';
 
