@@ -1,16 +1,13 @@
 import { Request } from 'express';
-import { JwtPayload, TokenService } from './token.service';
+import { TokenService } from './token.service';
 import {
   CanActivate,
   ExecutionContext,
   Injectable,
-  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ACCESS_COOKIE } from './auth-cookies';
-import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
-import { InjectRepository } from '@nestjs/typeorm';
 import { AuthService } from './auth.service';
 
 export interface AuthenticatedRequest extends Request {

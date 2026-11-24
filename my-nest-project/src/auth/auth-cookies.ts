@@ -26,3 +26,8 @@ export function setAuthCookies(
     maxAge: REFRESH_TTL_SEC * 1000,
   });
 }
+
+export function clearAuthCookies(res: Response): void {
+  res.clearCookie(ACCESS_COOKIE, accessOptions);
+  res.clearCookie(REFRESH_COOKIE, refreshOptions);
+}

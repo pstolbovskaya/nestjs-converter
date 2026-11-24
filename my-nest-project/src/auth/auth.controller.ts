@@ -16,7 +16,11 @@ import { ConfirmRegisterDto } from './dto/confirm-register.dto';
 import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
 import { LoginDto } from './dto/login.dto';
 import type { Request, Response } from 'express';
-import { REFRESH_COOKIE, setAuthCookies } from './auth-cookies';
+import {
+  clearAuthCookies,
+  REFRESH_COOKIE,
+  setAuthCookies,
+} from './auth-cookies';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import type { AuthenticatedRequest } from './jwt-auth.guard';
 
@@ -63,6 +67,12 @@ export class AuthController {
     }
     const tokens = await this.authService.refresh(token);
     setAuthCookies(res, tokens);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  logout(@Res({ passthrough: true }) res: Response): void {
+    clearAuthCookies(res);
   }
 
   @Get('me')
