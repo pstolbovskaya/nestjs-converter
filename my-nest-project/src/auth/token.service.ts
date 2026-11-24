@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '../users/user.entity';
 
@@ -6,6 +6,15 @@ export const ACCESS_TTL_SEC = 15 * 60;
 export const REFRESH_TTL_SEC = 30 * 24 * 60 * 60;
 
 export type TokenUse = 'access' | 'refresh';
+
+export interface JwtPayload {
+  sub: string;
+  token_use: TokenUse;
+  iss: string;
+  aud: string;
+  iat: number;
+  exp: number;
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -31,6 +40,27 @@ export class TokenService {
     ]);
 
     return { accessToken, refreshToken };
+  }
+
+  async verifyToken(token: string, tokenUse: TokenUse): Promise<JwtPayload> {
+    const isAccess = tokenUse === 'access';
+
+    let payload: JwtPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
+        secret: isAccess ? this.accessSecret : this.refreshSecret,
+        issuer: this.issuer,
+        audience: this.audience,
+        algorithms: ['HS256'],
+      });
+    } catch {
+      throw new UnauthorizedException();
+    }
+    if (payload.token_use !== tokenUse) {
+      throw new UnauthorizedException();
+    }
+
+    return payload;
   }
 
   private sign(user: User, tokenUse: TokenUse) {
