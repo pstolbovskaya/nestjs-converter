@@ -97,6 +97,35 @@ export class AuthService {
     };
   }
 
+  async findActiveUser(sub: string): Promise<User> {
+    const userId = Number(sub);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      throw new UnauthorizedException();
+    }
+
+    let user: User | null;
+
+    try {
+      user = await this.usersRepository.findOneBy({ id: userId });
+    } catch {
+      throw new ServiceUnavailableException();
+    }
+
+    if (!user || !user.isConfirmed) {
+      throw new UnauthorizedException();
+    }
+
+    return user;
+  }
+
+  async refresh(refreshToken: string) {
+    const payload = await this.tokenService.verifyToken(
+      refreshToken,
+      'refresh',
+    );
+    const user = await this.findActiveUser(payload.sub);
+    return this.tokenService.issueTokens(user);
+  }
   async confirmRegistration(dto: ConfirmRegisterDto) {
     const email = dto.email;
     const user = await this.usersRepository.findOneBy({ email });

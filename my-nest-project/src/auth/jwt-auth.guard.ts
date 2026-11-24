@@ -11,6 +11,7 @@ import { ACCESS_COOKIE } from './auth-cookies';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AuthService } from './auth.service';
 
 export interface AuthenticatedRequest extends Request {
   user: User;
@@ -20,8 +21,7 @@ export interface AuthenticatedRequest extends Request {
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly tokenService: TokenService,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly authService: AuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -34,23 +34,7 @@ export class JwtAuthGuard implements CanActivate {
 
     const payload = await this.tokenService.verifyToken(token, 'access');
 
-    const userId = Number(payload.sub);
-    if (!Number.isInteger(userId) || userId <= 0) {
-      throw new UnauthorizedException();
-    }
-
-    let user: User | null;
-    try {
-      user = await this.userRepository.findOneBy({ id: userId });
-    } catch {
-      throw new ServiceUnavailableException();
-    }
-
-    if (!user || !user.isConfirmed) {
-      throw new UnauthorizedException();
-    }
-
-    req.user = user;
+    req.user = await this.authService.findActiveUser(payload.sub);
     return true;
   }
 }

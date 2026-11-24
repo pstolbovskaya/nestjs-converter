@@ -7,6 +7,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -14,8 +15,8 @@ import { RegisterDto } from './dto/register.dto';
 import { ConfirmRegisterDto } from './dto/confirm-register.dto';
 import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
 import { LoginDto } from './dto/login.dto';
-import type { Response } from 'express';
-import { setAuthCookies } from './auth-cookies';
+import type { Request, Response } from 'express';
+import { REFRESH_COOKIE, setAuthCookies } from './auth-cookies';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import type { AuthenticatedRequest } from './jwt-auth.guard';
 
@@ -47,6 +48,20 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
     const tokens = await this.authService.login(dto);
+    setAuthCookies(res, tokens);
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const token: unknown = req.cookies?.[REFRESH_COOKIE];
+    if (typeof token !== 'string' || token === '') {
+      throw new UnauthorizedException();
+    }
+    const tokens = await this.authService.refresh(token);
     setAuthCookies(res, tokens);
   }
 
