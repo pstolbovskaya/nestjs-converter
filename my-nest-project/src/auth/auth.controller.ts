@@ -23,6 +23,7 @@ import {
 } from './auth-cookies';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import type { AuthenticatedRequest } from './jwt-auth.guard';
+import { IpRateLimitGuard } from './ip-rate-limit.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -47,6 +48,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(IpRateLimitGuard)
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -57,6 +59,7 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(IpRateLimitGuard)
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
