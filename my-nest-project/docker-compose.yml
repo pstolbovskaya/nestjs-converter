@@ -26,6 +26,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
       JWT_ISSUER: ${JWT_ISSUER:-nestjs-converter}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-nestjs-converter-web}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
     volumes:
       - .:/usr/src/app
     depends_on:
