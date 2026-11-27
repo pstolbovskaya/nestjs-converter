@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Ip,
   Post,
   Req,
   Res,
@@ -52,8 +53,9 @@ export class AuthController {
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
+    @Ip() ip: string,
   ): Promise<void> {
-    const tokens = await this.authService.login(dto);
+    const tokens = await this.authService.login(dto, ip);
     setAuthCookies(res, tokens);
   }
 

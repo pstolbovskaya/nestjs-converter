@@ -12,7 +12,7 @@ import { REDIS_CLIENT } from './redis.constants';
         if (!url) {
           throw new Error('REDIS_URL is not set');
         }
-        return new Redis(url);
+        return new Redis(url, { maxRetriesPerRequest: 1 });
       },
     },
     RateLimitService,

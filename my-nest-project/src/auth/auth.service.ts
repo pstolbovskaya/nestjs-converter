@@ -20,12 +20,15 @@ import { ResendConfirmationDto } from './dto/resend-confirmation.dto';
 import { MailService } from '../mail/mail.service';
 import { LoginDto } from './dto/login.dto';
 import { TokenService } from './token.service';
+import { RateLimitService } from '../redis/rate-limit.service';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_CD_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 const BCRYPT_COST = 12;
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync('dummy-password', BCRYPT_COST);
+const LOGIN_FAIL_LIMIT = 5;
+const LOGIN_FAIL_WINDOW_SECONDS = 15 * 60;
 
 @Injectable()
 export class AuthService {
@@ -38,6 +41,7 @@ export class AuthService {
     private readonly usersRepository: Repository<User>,
     private readonly mailService: MailService,
     private readonly tokenService: TokenService,
+    private readonly rateLimitService: RateLimitService,
   ) {
     const secret = process.env.CONFIRMATION_HMAC_SECRET;
     if (!secret) {
@@ -126,6 +130,7 @@ export class AuthService {
     const user = await this.findActiveUser(payload.sub);
     return this.tokenService.issueTokens(user);
   }
+
   async confirmRegistration(dto: ConfirmRegisterDto) {
     const email = dto.email;
     const user = await this.usersRepository.findOneBy({ email });
@@ -206,15 +211,27 @@ export class AuthService {
     return { message: `New code has been sent to ${user.email}` };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, ip: string) {
+    const failKey = `rl:login-fail:${dto.email}:${ip}`;
+
+    const fails = await this.rateLimitService.peek(failKey);
+
+    if (fails.count >= LOGIN_FAIL_LIMIT) {
+      throw new HttpException(
+        'Too many failed login attempts',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const user = await this.usersRepository.findOneBy({ email: dto.email });
     const hasToCheck = user?.password ?? DUMMY_PASSWORD_HASH;
     const isPasswordValid = await bcrypt.compare(dto.password, hasToCheck);
 
     if (!user || !isPasswordValid || !user.isConfirmed) {
+      await this.rateLimitService.hit(failKey, LOGIN_FAIL_WINDOW_SECONDS);
       throw new UnauthorizedException('invalid_credentials');
     }
 
+    await this.rateLimitService.reset(failKey);
     return this.tokenService.issueTokens(user);
   }
 

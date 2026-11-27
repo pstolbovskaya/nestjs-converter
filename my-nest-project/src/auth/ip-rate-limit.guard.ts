@@ -4,10 +4,9 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { RateLimitResult, RateLimitService } from '../redis/rate-limit.service';
+import { RateLimitService } from '../redis/rate-limit.service';
 
 const IP_LIMIT = 30;
 const IP_WINDOW_SECONDS = 60;
@@ -23,12 +22,7 @@ export class IpRateLimitGuard implements CanActivate {
 
     const key = `rl:ip:${req.path}:${req.ip}`;
 
-    let result: RateLimitResult;
-    try {
-      result = await this.rateLimitService.hit(key, IP_WINDOW_SECONDS);
-    } catch {
-      throw new ServiceUnavailableException();
-    }
+    const result = await this.rateLimitService.hit(key, IP_WINDOW_SECONDS);
 
     if (result.count > IP_LIMIT) {
       res.setHeader('Retry-After', String(result.retryAfter));
